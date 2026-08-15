@@ -20,6 +20,13 @@
   html, body { margin: 0; padding: 0; }
   body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 </style>
+<script>
+  /* Voor het eerste beeld: geen felle flits als donker gekozen is. */
+  try {
+    var k = localStorage.getItem("vangnet.thema");
+    if (k === "light" || k === "dark") document.documentElement.setAttribute("data-theme", k);
+  } catch (e) {}
+</script>
 </head>
 <body>
 <style>
@@ -123,6 +130,14 @@
   }
   @media (prefers-reduced-motion: reduce) { button:active { transform: none; } }
 
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .seg button {
+    border: none; border-radius: 0; background: transparent; color: var(--ink-faint);
+    padding: 5px 11px; font-size: 13px; font-weight: 600;
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+
   .row { display: flex; gap: 8px; flex-wrap: wrap; }
   .row.end { justify-content: flex-end; }
   .row.tussen { justify-content: space-between; align-items: center; }
@@ -203,7 +218,14 @@
 
 <div class="wrap">
   <header>
-    <h1>Vangnet</h1>
+    <div class="row tussen">
+      <h1>Vangnet</h1>
+      <div class="seg" id="thema" role="group" aria-label="Weergave">
+        <button data-thema="auto">Auto</button>
+        <button data-thema="light">Licht</button>
+        <button data-thema="dark">Donker</button>
+      </div>
+    </div>
     <p>Typ het zoals je het zegt. Ik haal het moment eruit.</p>
   </header>
 
@@ -217,7 +239,7 @@
   <section class="card">
     <h2>Erin gooien</h2>
     <div class="dumpbox">
-      <textarea id="dump" rows="2" placeholder="maandag school bellen"></textarea>
+      <textarea id="dump" rows="2" placeholder="Typ hier wat je niet wil vergeten&hellip;"></textarea>
       <button class="mic hidden" id="mic" title="Inspreken">&#127908;</button>
     </div>
     <div class="row end" style="margin-top:10px">
@@ -1241,8 +1263,26 @@
     }).catch(function () {});
   }
 
+  /* Weergave: auto volgt je telefoon, licht en donker overrulen dat. */
+  function pasThemaToe(keuze) {
+    if (keuze === "light" || keuze === "dark") document.documentElement.setAttribute("data-theme", keuze);
+    else document.documentElement.removeAttribute("data-theme");
+    try { localStorage.setItem("vangnet.thema", keuze); } catch (e) {}
+    [].forEach.call(document.querySelectorAll("#thema button"), function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-thema") === keuze ? "true" : "false");
+    });
+  }
+  (function () {
+    var keuze = "auto";
+    try { keuze = localStorage.getItem("vangnet.thema") || "auto"; } catch (e) {}
+    pasThemaToe(keuze);
+    [].forEach.call(document.querySelectorAll("#thema button"), function (b) {
+      b.onclick = function () { pasThemaToe(b.getAttribute("data-thema")); };
+    });
+  })();
+
   /* Zodat we allebei kunnen zien welke versie er draait. */
-  var VERSIE = "versie 4 — 15 augustus 2026";
+  var VERSIE = "versie 5 — 15 augustus 2026";
   document.getElementById("versie").textContent = VERSIE;
 
   if (!canPersist) {
