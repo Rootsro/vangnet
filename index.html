@@ -104,7 +104,7 @@
     color: var(--ink-faint); margin: 0 0 12px; font-weight: 700;
   }
 
-  textarea, input[type=text], select {
+  textarea, input[type=text], input[type=datetime-local], select {
     width: 100%; font: inherit; color: var(--ink);
     background: transparent; border: none; outline: none; resize: none;
   }
@@ -188,6 +188,21 @@
   .bevestig p { margin: 0 0 10px; font-size: 15px; }
   .bevestig .kop { font-weight: 700; margin-bottom: 6px; font-size: 14px; }
   .bevestig.vraag .kop { color: var(--mark); }
+  .plan-kiezer {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px;
+    align-items: end; width: 100%; margin-top: 2px; padding-top: 10px;
+    border-top: 1px solid color-mix(in srgb, var(--mark) 28%, transparent);
+  }
+  .plan-kiezer label { color: var(--ink-soft); font-size: 13px; }
+  .plan-kiezer input {
+    display: block; margin-top: 4px; padding: 8px 10px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--card); min-height: 42px;
+  }
+  .plan-kiezer .plan-fout { grid-column: 1 / -1; color: var(--mark); font-size: 13px; }
+  @media (max-width: 420px) {
+    .plan-kiezer { grid-template-columns: 1fr; }
+    .plan-kiezer button { width: 100%; }
+  }
   @keyframes opvallen {
     0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
     100% { box-shadow: 0 0 0 14px transparent; }
@@ -239,7 +254,7 @@
   <section class="card">
     <h2>Erin gooien</h2>
     <div class="dumpbox">
-      <textarea id="dump" rows="2" placeholder="Typ hier wat je niet wil vergeten&hellip;"></textarea>
+      <textarea id="dump" rows="2" placeholder="Typ hier wat je wilt onthouden&hellip;"></textarea>
       <button class="mic hidden" id="mic" title="Inspreken">&#127908;</button>
     </div>
     <div class="row end" style="margin-top:10px">
@@ -627,11 +642,17 @@
     if (d.getTime() <= Date.now()) d = new Date(d.getTime() + 864e5);
     return d.getTime();
   }
-  function komendeMaandag() {
-    var nu = new Date(), v = (1 - nu.getDay() + 7) % 7 || 7;
-    var d = new Date(nu.getTime() + v * 864e5);
+  function volgendeWerkdag() {
+    var d = new Date();
+    do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6);
     d.setHours(9, 0, 0, 0);
     return d.getTime();
+  }
+
+  function lokaalDatumTijd(ts) {
+    var d = new Date(ts), n = function (v) { return ("0" + v).slice(-2); };
+    return d.getFullYear() + "-" + n(d.getMonth() + 1) + "-" + n(d.getDate()) +
+           "T" + n(d.getHours()) + ":" + n(d.getMinutes());
   }
 
   function tekenBevestig() {
@@ -645,7 +666,7 @@
 
     var kop = document.createElement("div");
     kop.className = "kop";
-    kop.textContent = it.vraag ? "Bewaard — maar wannéér?" : "Bewaard";
+    kop.textContent = it.vraag ? "Bewaard — wanneer wil je eraan denken?" : "Bewaard";
     box.appendChild(kop);
 
     var p = document.createElement("p");
@@ -667,12 +688,53 @@
       rij.appendChild(k);
     }
     function zet(ts) { return function () { it.wanneer = ts(); it.vraag = false; bewaar(); tekenAlles(); }; }
+    function toonMomentKiezer() {
+      var oud = box.querySelector(".plan-kiezer");
+      if (oud) { oud.querySelector("input").focus(); return; }
+
+      var kiezer = document.createElement("div");
+      kiezer.className = "plan-kiezer";
+      var label = document.createElement("label");
+      label.textContent = "Kies datum en tijd";
+      var invoer = document.createElement("input");
+      invoer.type = "datetime-local";
+      invoer.min = lokaalDatumTijd(Date.now() + 60000);
+      invoer.value = lokaalDatumTijd(volgendeWerkdag());
+      label.appendChild(invoer);
+      kiezer.appendChild(label);
+
+      var plan = document.createElement("button");
+      plan.className = "primary mini";
+      plan.textContent = "Plan dit moment";
+      plan.onclick = function () {
+        var gekozen = new Date(invoer.value).getTime();
+        var fout = kiezer.querySelector(".plan-fout");
+        if (!gekozen || gekozen <= Date.now()) {
+          if (!fout) {
+            fout = document.createElement("div");
+            fout.className = "plan-fout";
+            kiezer.appendChild(fout);
+          }
+          fout.textContent = "Kies een moment dat nog komt.";
+          invoer.focus();
+          return;
+        }
+        it.wanneer = gekozen;
+        it.vraag = false;
+        bewaar();
+        tekenAlles();
+      };
+      kiezer.appendChild(plan);
+      box.appendChild(kiezer);
+      invoer.focus();
+    }
 
     if (it.vraag) {
       knop("Vanavond", zet(function () { return overUur(0, 19, 30); }));
       knop("Morgenochtend", zet(function () { return overUur(1, 9, 0); }));
       knop("Overmorgen", zet(function () { return overUur(2, 9, 0); }));
-      knop("Maandag", zet(komendeMaandag));
+      knop("Volgende werkdag", zet(volgendeWerkdag));
+      knop("Kies datum en tijd", toonMomentKiezer);
       knop("Laat maar open", function () { it.vraag = false; bewaar(); tekenAlles(); });
     } else if (it.soort === "doen") {
       knop("Is een feit", function () { it.soort = "weten"; it.wanneer = null; bewaar(); tekenAlles(); });
@@ -683,6 +745,7 @@
       } else {
         knop("Vanavond", zet(function () { return overUur(0, 19, 30); }));
         knop("Morgenochtend", zet(function () { return overUur(1, 9, 0); }));
+        knop("Kies datum en tijd", toonMomentKiezer);
       }
       knop("Klaar", function () { laatste = null; tekenBevestig(); }, true);
     } else {
@@ -985,7 +1048,7 @@
     }
 
     if (totaal < 3) {
-      regelP("Nog niks, eerlijk gezegd. Ik heb <strong>" + totaal + "</strong> van de drie reacties die ik minimaal nodig heb.", false);
+      regelP("Ik heb <strong>" + totaal + "</strong> reacties om te leren wat voor jou werkt. Na drie reacties kan ik een eerste patroon laten zien.", false);
       regelP("Tik een paar keer op “gelukt” of “niet nu”, dan staat hier wat bij je werkt.", false);
       return;
     }
@@ -1282,7 +1345,7 @@
   })();
 
   /* Zodat we allebei kunnen zien welke versie er draait. */
-  var VERSIE = "versie 5 — 15 augustus 2026";
+  var VERSIE = "versie 6 — 15 augustus 2026";
   document.getElementById("versie").textContent = VERSIE;
 
   if (!canPersist) {
