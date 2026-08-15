@@ -1,0 +1,1047 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vangnet</title>
+<meta name="description" content="Zakhulpje voor ADHD en ADD dat leert welk zetje bij jou werkt.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png" type="image/png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Vangnet">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#eef1f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1318" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex, nofollow">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+</style>
+</head>
+<body>
+<style>
+  :root {
+    /* Koel papier, één inktblauw accent. Weinig prikkels, veel rust. */
+    --bg: #eef1f4;
+    --card: #ffffff;
+    --ink: #12171d;
+    --ink-soft: #4a5663;
+    --ink-faint: #7a8794;
+    --line: #dae0e7;
+    --accent: #1f5fa9;
+    --accent-soft: #e4ecf6;
+    --on-accent: #ffffff;
+    --mark: #8a5a12;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(18,23,29,.05), 0 6px 20px rgba(18,23,29,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1318;
+      --card: #171d24;
+      --ink: #e7edf3;
+      --ink-soft: #9dabb9;
+      --ink-faint: #71808e;
+      --line: #262f39;
+      --accent: #7fb2ee;
+      --accent-soft: #17222f;
+      --on-accent: #0c1420;
+      --mark: #d9a45c;
+      --shadow: 0 1px 2px rgba(0,0,0,.35), 0 6px 20px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1318;
+    --card: #171d24;
+    --ink: #e7edf3;
+    --ink-soft: #9dabb9;
+    --ink-faint: #71808e;
+    --line: #262f39;
+    --accent: #7fb2ee;
+    --accent-soft: #17222f;
+    --on-accent: #0c1420;
+    --mark: #d9a45c;
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 6px 20px rgba(0,0,0,.3);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 20px 16px 64px; }
+
+  header { padding: 8px 2px 20px; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+  header p { margin: 4px 0 0; color: var(--ink-faint); font-size: 13.5px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  .card h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--ink-faint); margin: 0 0 12px; font-weight: 600;
+  }
+
+  textarea, input[type=text] {
+    width: 100%; font: inherit; color: var(--ink);
+    background: transparent; border: none; outline: none; resize: none;
+  }
+  textarea::placeholder, input::placeholder { color: var(--ink-faint); }
+
+  .dumpbox { display: flex; gap: 10px; align-items: flex-start; }
+  .dumpbox textarea { min-height: 52px; padding-top: 4px; font-size: 17px; }
+
+  button {
+    font: inherit; cursor: pointer; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink);
+    padding: 10px 14px; transition: transform .08s ease, background .15s ease;
+  }
+  button:active { transform: scale(.98); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+  button.ghost { background: transparent; }
+  button.mic { padding: 10px 12px; line-height: 1; font-size: 18px; }
+  button.mic.on { background: var(--mark); border-color: var(--mark); color: var(--on-accent); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: .45; cursor: default; }
+
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row.end { justify-content: flex-end; }
+
+  /* Nu-kaart */
+  #nu.card { border-color: var(--accent); background: var(--accent-soft); }
+  /* Het ding dat je nú doet leest als een briefje, niet als interface. */
+  .nu-item {
+    font-family: ui-serif, Georgia, "Times New Roman", serif;
+    font-size: 21px; font-weight: 500; line-height: 1.35;
+    margin: 0 0 10px; text-wrap: balance;
+  }
+  @media (prefers-reduced-motion: reduce) { button:active { transform: none; } }
+  .nu-zet { font-size: 15.5px; color: var(--ink-soft); margin: 0 0 16px; }
+  .nu-empty { color: var(--ink-soft); font-size: 15px; margin: 0; }
+
+  .timer {
+    font-variant-numeric: tabular-nums; font-size: 34px; font-weight: 600;
+    letter-spacing: -.02em; margin: 4px 0 14px;
+  }
+
+  ul.items { list-style: none; margin: 0; padding: 0; }
+  ul.items li {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 11px 0; border-top: 1px solid var(--line);
+  }
+  ul.items li:first-child { border-top: none; }
+  .item-text { flex: 1; font-size: 15.5px; word-break: break-word; }
+  .item-meta { color: var(--ink-faint); font-size: 12.5px; margin-top: 2px; }
+  .tick { border: none; background: transparent; padding: 2px 6px; color: var(--ink-faint); font-size: 17px; }
+  .tick:hover { color: var(--accent); }
+
+  .search { display: flex; gap: 8px; align-items: center; }
+  .search input { font-size: 16px; }
+
+  .know { font-size: 15px; color: var(--ink-soft); }
+  .know p { margin: 0 0 9px; }
+  .know strong { color: var(--ink); font-weight: 600; }
+  .know .unknown { color: var(--ink-faint); font-style: italic; }
+
+  .foot { color: var(--ink-faint); font-size: 12.5px; text-align: center; margin-top: 26px; line-height: 1.6; }
+  .foot a { color: inherit; }
+
+  .note { font-size: 12.5px; color: var(--ink-faint); margin: 10px 0 0; }
+  .hidden { display: none !important; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Vangnet</h1>
+    <p>Gooi het erin. Ik breng het terug en onthoud wat bij jou werkt.</p>
+  </header>
+
+  <!-- HET MOMENT -->
+  <section class="card" id="nu">
+    <h2>Nu</h2>
+    <div id="nu-body"></div>
+  </section>
+
+  <!-- DUMP -->
+  <section class="card">
+    <h2>Erin gooien</h2>
+    <div class="dumpbox">
+      <textarea id="dump" rows="2" placeholder="Wat je niet wil vergeten. Of waar je iets hebt gelegd."></textarea>
+      <button class="mic hidden" id="mic" title="Inspreken">&#127908;</button>
+    </div>
+    <div class="row end" style="margin-top:10px">
+      <button class="primary" id="dump-save">Bewaar</button>
+    </div>
+    <p class="note">Geen categorie, geen datum, geen prioriteit. Dat is expres.</p>
+  </section>
+
+  <!-- ZOEKEN -->
+  <section class="card">
+    <h2>Waar was het ook alweer</h2>
+    <div class="search">
+      <input type="text" id="zoek" placeholder="sleutel, paspoort, oplader&hellip;">
+      <button class="ghost" id="zoek-wis">Wis</button>
+    </div>
+    <ul class="items" id="zoek-uit" style="margin-top:12px"></ul>
+  </section>
+
+  <!-- OPEN -->
+  <section class="card">
+    <h2>Staat open <span id="open-telling" style="color:var(--ink-faint);font-weight:400"></span></h2>
+    <ul class="items" id="lijst"></ul>
+  </section>
+
+  <!-- AI-KOPPELING -->
+  <section class="card">
+    <h2>Koppel je eigen AI</h2>
+    <p class="note" style="margin-top:0">
+      Optioneel. Met je eigen sleutel kan ik een vage aantekening omzetten in één concrete eerste handeling.
+      De sleutel blijft op dit apparaat en gaat rechtstreeks naar de aanbieder — niet langs mij.
+    </p>
+    <div class="row" style="margin-top:12px; align-items:center">
+      <select id="ai-provider" style="font:inherit;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)">
+        <option value="gemini">Gemini (Google) — gratis</option>
+        <option value="anthropic">Claude (Anthropic)</option>
+        <option value="openai">ChatGPT (OpenAI)</option>
+        <option value="compat">Iets anders — Groq, OpenRouter, Mistral, Grok, lokaal</option>
+      </select>
+      <input type="text" id="ai-key" placeholder="API-sleutel plakken" autocomplete="off"
+             style="flex:1;min-width:170px;border:1px solid var(--line);border-radius:10px;padding:9px 10px">
+    </div>
+    <div class="row hidden" id="ai-extra" style="margin-top:8px">
+      <input type="text" id="ai-url" placeholder="Adres, bijv. https://api.groq.com/openai/v1" autocomplete="off"
+             style="flex:2;min-width:200px;border:1px solid var(--line);border-radius:10px;padding:9px 10px">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="ai-model" placeholder="Model (leeg laten = standaard)" autocomplete="off"
+             style="flex:1;min-width:180px;border:1px solid var(--line);border-radius:10px;padding:9px 10px">
+    </div>
+    <div class="row end" style="margin-top:10px">
+      <button class="ghost" id="ai-wis">Vergeet sleutel</button>
+      <button class="primary" id="ai-bewaar">Koppel</button>
+    </div>
+    <p class="note" id="ai-status"></p>
+    <p class="note">
+      Gratis zonder creditcard kan bij Google AI Studio (Gemini) en Groq. Let op: een abonnement op
+      ChatGPT Plus, Claude Pro of SuperGrok is iets ánders dan een API-sleutel — daarmee werkt dit niet.
+    </p>
+  </section>
+
+  <!-- PROFIEL -->
+  <section class="card">
+    <h2>Wat ik over je weet</h2>
+    <div class="know" id="ik"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="ghost" id="notif">Herinneringen aanzetten</button>
+      <button class="ghost" id="wis-alles">Alles wissen</button>
+    </div>
+    <p class="note" id="notif-note"></p>
+  </section>
+
+  <!-- TOESTELTEST -->
+  <section class="card">
+    <h2>Wat kan jouw telefoon?</h2>
+    <p class="note" style="margin-top:0">
+      Over iPhones en meldingen wordt van alles beweerd. In plaats van gokken: meet het.
+      Dit stuurt niets weg, het kijkt alleen wat deze browser aankan.
+    </p>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="test-doe">Meet dit toestel</button>
+      <button class="ghost" id="test-melding">Stuur een testmelding</button>
+    </div>
+    <ul class="items" id="test-uit" style="margin-top:12px"></ul>
+  </section>
+
+  <p class="foot">
+    Alles blijft op dit apparaat. Niets gaat naar een server.<br>
+    Hulpmiddel, geen behandeling.
+  </p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- opslag (valt terug op geheugen als localStorage geblokkeerd is) ---------- */
+  var KEY = "vangnet.v1";
+  var mem = null;
+  var canPersist = true;
+  try { window.localStorage.setItem("__t", "1"); window.localStorage.removeItem("__t"); }
+  catch (e) { canPersist = false; }
+
+  function leeg() {
+    return {
+      items: [],
+      geheugen: { zet: {}, toon: {}, moment: {} },
+      laatsteZet: null,
+      gestart: Date.now()
+    };
+  }
+  function laad() {
+    if (mem) return mem;
+    if (canPersist) {
+      try {
+        var raw = window.localStorage.getItem(KEY);
+        mem = raw ? JSON.parse(raw) : leeg();
+      } catch (e) { mem = leeg(); }
+    } else { mem = leeg(); }
+    if (!mem.geheugen) mem.geheugen = { zet: {}, toon: {}, moment: {} };
+    return mem;
+  }
+  function bewaar() {
+    if (!canPersist) return;
+    try { window.localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) { canPersist = false; }
+  }
+
+  var S = laad();
+
+  /* ---------- de zetjes ---------- */
+  /* Elk zetje is een andere manier om iemand in beweging te krijgen.
+     Welke bij jou werkt weten we niet vooraf — daar is dit hele ding voor. */
+  var ZETTEN = [
+    { id: "vijf",   timer: 300, tekst: {
+        kort:   "Vijf minuten. Daarna mag je stoppen.",
+        zacht:  "Zullen we vijf minuten doen? Als het dan niet loopt, stop je gewoon.",
+        speels: "Vijf minuten, ik hou de klok bij. Daarna ben je vrij." } },
+    { id: "eerste", timer: 0, tekst: {
+        kort:   "Wat is de allereerste handeling? Doe alleen die.",
+        zacht:  "Je hoeft het niet af te maken. Wat is het allerkleinste eerste stapje?",
+        speels: "Alleen het eerste duwtje. De rest lost zichzelf meestal op." } },
+    { id: "pak",    timer: 0, tekst: {
+        kort:   "Leg wat je nodig hebt nu voor je neus.",
+        zacht:  "Pak alvast het spul erbij. Verder hoeft nu niks.",
+        speels: "Alleen spullen klaarleggen. Dat telt al." } },
+    { id: "twee",   timer: 120, tekst: {
+        kort:   "Twee minuten. Nu.",
+        zacht:  "Dit kost waarschijnlijk twee minuten. Even wegwerken?",
+        speels: "Twee minuten. Sneller dan erover nadenken." } },
+    { id: "zeg",    timer: 0, tekst: {
+        kort:   "Stuur iemand dat je hier nu aan begint.",
+        zacht:  "Helpt het om iemand te appen dat je hieraan begint?",
+        speels: "Zeg tegen iemand dat je begint. Werkt verdacht goed." } },
+    { id: "weg",    timer: 0, tekst: {
+        kort:   "Nu doen of weggooien. Niet bewaren.",
+        zacht:  "Mag dit ook gewoon weg? Dat is ook een uitkomst.",
+        speels: "Doen of schrappen. Half onthouden kost het meest." } }
+  ];
+  var TONEN = ["kort", "zacht", "speels"];
+
+  function nuMoment() {
+    var u = new Date().getHours();
+    if (u < 12) return "ochtend";
+    if (u < 18) return "middag";
+    return "avond";
+  }
+
+  /* ---------- leren: simpele score met een beetje ruimte om te blijven proberen ---------- */
+  function score(soort, id) {
+    var g = S.geheugen[soort][id];
+    if (!g) return { ok: 0, nee: 0, n: 0, waarde: 0 };
+    var n = g.ok + g.nee;
+    // Laplace-correctie: met weinig data blijft alles dicht bij elkaar.
+    return { ok: g.ok, nee: g.nee, n: n, waarde: (g.ok + 1) / (n + 2) };
+  }
+  function noteer(soort, id, gelukt) {
+    var b = S.geheugen[soort];
+    if (!b[id]) b[id] = { ok: 0, nee: 0 };
+    if (gelukt) b[id].ok++; else b[id].nee++;
+  }
+  function kies(soort, ids) {
+    // 25% van de tijd bewust iets anders proberen, anders zou hij nooit meer leren.
+    if (Math.random() < 0.25) return ids[Math.floor(Math.random() * ids.length)];
+    var best = ids[0], bestW = -1;
+    ids.forEach(function (id) {
+      var w = score(soort, id).waarde + Math.random() * 0.02;
+      if (w > bestW) { bestW = w; best = id; }
+    });
+    return best;
+  }
+
+  /* ---------- items ---------- */
+  function open() { return S.items.filter(function (i) { return i.staat === "open"; }); }
+
+  function voegToe(tekst) {
+    tekst = (tekst || "").trim();
+    if (!tekst) return;
+    S.items.unshift({
+      id: String(Date.now()) + Math.random().toString(36).slice(2, 6),
+      tekst: tekst,
+      staat: "open",
+      gemaakt: Date.now(),
+      zetjes: 0
+    });
+    bewaar();
+    tekenAlles();
+  }
+
+  function zetStaat(id, staat) {
+    var it = S.items.filter(function (i) { return i.id === id; })[0];
+    if (!it) return;
+    it.staat = staat;
+    it.af = Date.now();
+    bewaar();
+  }
+
+  /* ---------- het Nu-moment ---------- */
+  var huidig = null; // {itemId, zetId, toon, moment}
+  var timerId = null, timerEind = 0;
+
+  function bouwZet(item) {
+    var zetId = kies("zet", ZETTEN.map(function (z) { return z.id; }));
+    var toon = kies("toon", TONEN);
+    huidig = { itemId: item.id, zetId: zetId, toon: toon, moment: nuMoment() };
+    S.laatsteZet = Date.now();
+    bewaar();
+  }
+
+  function pakIets() {
+    var o = open();
+    if (!o.length) { huidig = null; return; }
+    // Voorkeur voor wat het langst ligt en het minst vaak is aangeboden.
+    o.sort(function (a, b) {
+      if (a.zetjes !== b.zetjes) return a.zetjes - b.zetjes;
+      return a.gemaakt - b.gemaakt;
+    });
+    bouwZet(o[0]);
+  }
+
+  function feedback(gelukt) {
+    if (!huidig) return;
+    noteer("zet", huidig.zetId, gelukt);
+    noteer("toon", huidig.toon, gelukt);
+    noteer("moment", huidig.moment, gelukt);
+    var it = S.items.filter(function (i) { return i.id === huidig.itemId; })[0];
+    if (it) { it.zetjes++; if (gelukt) zetStaat(it.id, "af"); }
+    stopTimer();
+    huidig = null;
+    bewaar();
+    tekenAlles();
+  }
+
+  function stopTimer() {
+    if (timerId) { clearInterval(timerId); timerId = null; }
+    timerEind = 0;
+  }
+
+  function startTimer(sec) {
+    stopTimer();
+    timerEind = Date.now() + sec * 1000;
+    timerId = setInterval(function () {
+      var over = Math.max(0, Math.round((timerEind - Date.now()) / 1000));
+      var el = document.getElementById("klok");
+      if (el) el.textContent = String(Math.floor(over / 60)) + ":" + ("0" + (over % 60)).slice(-2);
+      if (over <= 0) { stopTimer(); melding("Tijd om. Verder mag, stoppen mag ook."); tekenNu(); }
+    }, 250);
+    tekenNu();
+  }
+
+  function tekenNu() {
+    var b = document.getElementById("nu-body");
+    b.innerHTML = "";
+
+    if (!huidig) {
+      var o = open();
+      var p = document.createElement("p");
+      p.className = "nu-empty";
+      p.textContent = o.length
+        ? "Er staat " + o.length + " ding" + (o.length === 1 ? "" : "en") + " open."
+        : "Niks open. Dat mag ook.";
+      b.appendChild(p);
+
+      var r = document.createElement("div");
+      r.className = "row";
+      r.style.marginTop = "12px";
+      if (o.length) {
+        var kb = document.createElement("button");
+        kb.className = "primary";
+        kb.textContent = "Ik kom er niet in";
+        kb.onclick = function () { pakIets(); tekenNu(); };
+        r.appendChild(kb);
+      }
+      b.appendChild(r);
+      return;
+    }
+
+    var item = S.items.filter(function (i) { return i.id === huidig.itemId; })[0];
+    var zet = ZETTEN.filter(function (z) { return z.id === huidig.zetId; })[0];
+    if (!item || !zet) { huidig = null; tekenNu(); return; }
+
+    var h = document.createElement("p");
+    h.className = "nu-item";
+    h.textContent = item.tekst;
+    b.appendChild(h);
+
+    var z = document.createElement("p");
+    z.className = "nu-zet";
+    z.textContent = zet.tekst[huidig.toon];
+    b.appendChild(z);
+
+    if (timerId) {
+      var k = document.createElement("div");
+      k.className = "timer";
+      k.id = "klok";
+      k.textContent = "";
+      b.appendChild(k);
+    } else if (zet.timer) {
+      var sb = document.createElement("button");
+      sb.className = "primary";
+      sb.textContent = "Start " + (zet.timer / 60) + " min";
+      sb.onclick = function () { startTimer(zet.timer); };
+      b.appendChild(sb);
+      b.appendChild(document.createElement("div")).style.height = "12px";
+    }
+
+    var rij = document.createElement("div");
+    rij.className = "row";
+
+    var ok = document.createElement("button");
+    ok.className = "primary";
+    ok.textContent = "Gelukt";
+    ok.onclick = function () { feedback(true); };
+
+    var nee = document.createElement("button");
+    nee.className = "ghost";
+    nee.textContent = "Niet nu";
+    nee.onclick = function () { feedback(false); };
+
+    var weg = document.createElement("button");
+    weg.className = "ghost";
+    weg.textContent = "Hoeft niet meer";
+    weg.onclick = function () {
+      if (huidig) zetStaat(huidig.itemId, "weg");
+      stopTimer(); huidig = null; bewaar(); tekenAlles();
+    };
+
+    rij.appendChild(ok); rij.appendChild(nee); rij.appendChild(weg);
+
+    if (aiConfig()) {
+      var ai = document.createElement("button");
+      ai.className = "ghost";
+      ai.textContent = "Maak het concreet";
+      ai.onclick = function () {
+        ai.disabled = true;
+        ai.textContent = "Even denken…";
+        vraagAI(item.tekst).then(function (r) {
+          z.textContent = r.tekst;
+          huidig.toon = r.toon;
+          huidig.zetId = "eerste";  // dit is in feite het eerste-stap-zetje
+          ai.remove();
+        }).catch(function (e) {
+          ai.disabled = false;
+          ai.textContent = "Maak het concreet";
+          var f = document.createElement("p");
+          f.className = "note";
+          f.textContent = "Lukte niet: " + e.message;
+          b.appendChild(f);
+        });
+      };
+      rij.appendChild(ai);
+    }
+
+    b.appendChild(rij);
+
+    var n = document.createElement("p");
+    n.className = "note";
+    n.textContent = "“Niet nu” is geen mislukking — daar leer ik net zo veel van.";
+    b.appendChild(n);
+  }
+
+  /* ---------- lijst ---------- */
+  function tekenLijst() {
+    var ul = document.getElementById("lijst");
+    ul.innerHTML = "";
+    var o = open();
+    document.getElementById("open-telling").textContent = o.length ? "(" + o.length + ")" : "";
+    if (!o.length) {
+      var li = document.createElement("li");
+      li.className = "item-meta";
+      li.textContent = "Leeg.";
+      ul.appendChild(li);
+      return;
+    }
+    o.forEach(function (it) {
+      var li = document.createElement("li");
+
+      var t = document.createElement("div");
+      t.className = "item-text";
+      t.textContent = it.tekst;
+      var m = document.createElement("div");
+      m.className = "item-meta";
+      m.textContent = geleden(it.gemaakt) + (it.zetjes ? " · " + it.zetjes + "x aangeboden" : "");
+      t.appendChild(m);
+
+      var af = document.createElement("button");
+      af.className = "tick";
+      af.title = "Klaar";
+      af.innerHTML = "&#10003;";
+      af.onclick = function () { zetStaat(it.id, "af"); tekenAlles(); };
+
+      var weg = document.createElement("button");
+      weg.className = "tick";
+      weg.title = "Hoeft niet meer";
+      weg.innerHTML = "&times;";
+      weg.onclick = function () { zetStaat(it.id, "weg"); tekenAlles(); };
+
+      li.appendChild(t); li.appendChild(af); li.appendChild(weg);
+      ul.appendChild(li);
+    });
+  }
+
+  function geleden(ts) {
+    var m = Math.round((Date.now() - ts) / 60000);
+    if (m < 1) return "net";
+    if (m < 60) return m + " min geleden";
+    var u = Math.round(m / 60);
+    if (u < 24) return u + " uur geleden";
+    var d = Math.round(u / 24);
+    return d + " dag" + (d === 1 ? "" : "en") + " geleden";
+  }
+
+  /* ---------- zoeken ---------- */
+  function tekenZoek() {
+    var q = document.getElementById("zoek").value.trim().toLowerCase();
+    var ul = document.getElementById("zoek-uit");
+    ul.innerHTML = "";
+    if (!q) return;
+    var hits = S.items.filter(function (i) { return i.tekst.toLowerCase().indexOf(q) !== -1; }).slice(0, 12);
+    if (!hits.length) {
+      var li = document.createElement("li");
+      li.className = "item-meta";
+      li.textContent = "Niets gevonden met “" + q + "”.";
+      ul.appendChild(li);
+      return;
+    }
+    hits.forEach(function (it) {
+      var li = document.createElement("li");
+      var t = document.createElement("div");
+      t.className = "item-text";
+      t.textContent = it.tekst;
+      var m = document.createElement("div");
+      m.className = "item-meta";
+      m.textContent = geleden(it.gemaakt) + (it.staat !== "open" ? " · afgehandeld" : "");
+      t.appendChild(m);
+      li.appendChild(t);
+      ul.appendChild(li);
+    });
+  }
+
+  /* ---------- profiel ---------- */
+  function beste(soort, ids) {
+    var r = ids.map(function (id) { var s = score(soort, id); s.id = id; return s; })
+               .filter(function (s) { return s.n > 0; })
+               .sort(function (a, b) { return b.waarde - a.waarde; });
+    return r;
+  }
+
+  var LABEL = {
+    vijf: "vijf minuten afspreken", eerste: "alleen de eerste handeling benoemen",
+    pak: "spullen klaarleggen", twee: "twee minuten, meteen",
+    zeg: "het tegen iemand zeggen", weg: "doen of schrappen",
+    kort: "korte, kale zinnen", zacht: "zachte, vrijblijvende zinnen", speels: "speelse zinnen",
+    ochtend: "'s ochtends", middag: "'s middags", avond: "'s avonds"
+  };
+
+  function tekenIk() {
+    var el = document.getElementById("ik");
+    el.innerHTML = "";
+
+    var totaal = 0;
+    ["zet", "toon", "moment"].forEach(function (s) {
+      Object.keys(S.geheugen[s]).forEach(function (k) {
+        totaal += S.geheugen[s][k].ok + S.geheugen[s][k].nee;
+      });
+    });
+    totaal = Math.round(totaal / 3);
+
+    function regel(html, zeker) {
+      var p = document.createElement("p");
+      if (!zeker) p.className = "unknown";
+      p.innerHTML = html;
+      el.appendChild(p);
+    }
+
+    if (totaal < 3) {
+      regel("Nog niks, eerlijk gezegd. Ik heb <strong>" + totaal + "</strong> van de drie reacties die ik minimaal nodig heb.", false);
+      regel("Zodra je een paar keer op “gelukt” of “niet nu” hebt getikt, staat hier wat wel en niet bij je werkt.", false);
+      return;
+    }
+
+    var bz = beste("zet", ZETTEN.map(function (z) { return z.id; }));
+    var bt = beste("toon", TONEN);
+    var bm = beste("moment", ["ochtend", "middag", "avond"]);
+
+    if (bz.length && bz[0].n >= 2) {
+      regel("Wat je het vaakst in beweging krijgt: <strong>" + LABEL[bz[0].id] + "</strong> — " +
+            bz[0].ok + " van " + bz[0].n + " keer gelukt.", true);
+      var slecht = bz[bz.length - 1];
+      if (bz.length > 2 && slecht.n >= 2 && slecht.waarde < 0.4) {
+        regel("Wat bij jou juist níet werkt: <strong>" + LABEL[slecht.id] + "</strong> — " +
+              slecht.ok + " van " + slecht.n + ". Die bied ik minder vaak aan.", true);
+      }
+    } else {
+      regel("Over welk zetje het beste werkt kan ik nog niks zeggen. Te weinig reacties.", false);
+    }
+
+    if (bt.length && bt[0].n >= 2) {
+      regel("Je reageert het best op <strong>" + LABEL[bt[0].id] + "</strong>.", true);
+    } else {
+      regel("Over toon weet ik nog niets.", false);
+    }
+
+    if (bm.length && bm[0].n >= 2) {
+      regel("Beste moment tot nu toe: <strong>" + LABEL[bm[0].id] + "</strong>.", true);
+    } else {
+      regel("Over het beste moment van de dag weet ik nog niets.", false);
+    }
+
+    var af = S.items.filter(function (i) { return i.staat === "af"; }).length;
+    var wg = S.items.filter(function (i) { return i.staat === "weg"; }).length;
+    regel("Sinds de start: <strong>" + af + "</strong> afgerond, <strong>" + wg + "</strong> geschrapt. " +
+          "Schrappen telt hier als een goede uitkomst.", true);
+  }
+
+  /* ---------- eigen AI-koppeling (sleutel van de gebruiker, blijft lokaal) ---------- */
+  var STANDAARDMODEL = {
+    gemini: "gemini-2.5-flash",
+    anthropic: "claude-opus-5",
+    openai: "gpt-4o-mini",
+    compat: ""
+  };
+  var NAAM = {
+    gemini: "Gemini", anthropic: "Claude", openai: "ChatGPT", compat: "je eigen aanbieder"
+  };
+
+  function aiConfig() {
+    return (S.ai && S.ai.key) ? S.ai : null;
+  }
+
+  async function vraagAI(itemTekst) {
+    var cfg = aiConfig();
+    if (!cfg) throw new Error("geen sleutel");
+
+    var toon = kies("toon", TONEN);
+    var opdracht =
+      "Iemand met ADHD of ADD heeft dit opgeschreven en komt er niet in:\n\n" +
+      '"' + itemTekst + '"\n\n' +
+      "Noem één concrete fysieke eerste handeling die binnen twee minuten te doen is. " +
+      "Geen plan, geen stappenlijst, geen uitleg, geen aanmoediging. " +
+      "Eén zin, Nederlands, maximaal vijftien woorden. " +
+      "Toon: " + ({ kort: "kaal en kort", zacht: "zacht en vrijblijvend", speels: "licht en speels" })[toon] + ".";
+
+    var model = cfg.model || STANDAARDMODEL[cfg.provider] || "";
+    var url, headers, body;
+
+    if (cfg.provider === "anthropic") {
+      url = "https://api.anthropic.com/v1/messages";
+      headers = {
+        "content-type": "application/json",
+        "x-api-key": cfg.key,
+        "anthropic-version": "2023-06-01",
+        // nodig om de API rechtstreeks vanuit een browser te mogen aanroepen
+        "anthropic-dangerous-direct-browser-access": "true"
+      };
+      body = {
+        model: model,
+        max_tokens: 300,
+        // korte, goedkope vraag: geen denkstap nodig
+        thinking: { type: "disabled" },
+        output_config: { effort: "low" },
+        messages: [{ role: "user", content: opdracht }]
+      };
+    } else if (cfg.provider === "gemini") {
+      url = "https://generativelanguage.googleapis.com/v1beta/models/" +
+            encodeURIComponent(model) + ":generateContent";
+      headers = { "content-type": "application/json", "x-goog-api-key": cfg.key };
+      body = {
+        contents: [{ parts: [{ text: opdracht }] }],
+        generationConfig: { maxOutputTokens: 200 }
+      };
+    } else {
+      // OpenAI en alles wat de OpenAI-vorm spreekt: Groq, OpenRouter, Mistral, Grok, lokaal
+      var basis = cfg.provider === "openai"
+        ? "https://api.openai.com/v1"
+        : String(cfg.baseUrl || "").replace(/\/+$/, "");
+      if (!basis) throw new Error("Geen adres ingevuld voor deze aanbieder.");
+      if (!model) throw new Error("Geen model ingevuld voor deze aanbieder.");
+      url = basis + "/chat/completions";
+      headers = { "content-type": "application/json", "authorization": "Bearer " + cfg.key };
+      body = { model: model, max_tokens: 200, messages: [{ role: "user", content: opdracht }] };
+    }
+
+    var res = await fetch(url, { method: "POST", headers: headers, body: JSON.stringify(body) });
+    if (!res.ok) {
+      var t = await res.text();
+      throw new Error("De aanbieder gaf een fout (" + res.status + "). " + t.slice(0, 160));
+    }
+    var data = await res.json();
+
+    var uit;
+    if (cfg.provider === "anthropic") {
+      if (data.stop_reason === "refusal") throw new Error("De aanbieder wilde hier niet op antwoorden.");
+      var tekstblok = (data.content || []).filter(function (b) { return b.type === "text"; })[0];
+      uit = tekstblok && tekstblok.text;
+    } else if (cfg.provider === "gemini") {
+      var kand = (data.candidates || [])[0];
+      var delen = kand && kand.content && kand.content.parts;
+      uit = delen && delen.map(function (p) { return p.text || ""; }).join("");
+    } else {
+      var keuze = (data.choices || [])[0];
+      uit = keuze && keuze.message && keuze.message.content;
+    }
+
+    if (!uit || !uit.trim()) throw new Error("Leeg antwoord gekregen.");
+    return { tekst: uit.trim(), toon: toon };
+  }
+
+  function tekenAiVelden() {
+    var p = document.getElementById("ai-provider").value;
+    document.getElementById("ai-extra").classList.toggle("hidden", p !== "compat");
+    document.getElementById("ai-model").placeholder = STANDAARDMODEL[p]
+      ? "Model (leeg laten = " + STANDAARDMODEL[p] + ")"
+      : "Model, bijv. llama-3.3-70b-versatile";
+  }
+
+  function tekenAiStatus() {
+    var st = document.getElementById("ai-status");
+    var cfg = aiConfig();
+    if (cfg) {
+      st.textContent = "Gekoppeld met " + (NAAM[cfg.provider] || cfg.provider) +
+                       " (" + (cfg.model || STANDAARDMODEL[cfg.provider]) + "). " +
+                       "Alleen de tekst van dat ene item gaat mee — verder niets.";
+      document.getElementById("ai-provider").value = cfg.provider;
+      document.getElementById("ai-key").value = "";
+      document.getElementById("ai-key").placeholder = "sleutel opgeslagen";
+      document.getElementById("ai-model").value = cfg.model || "";
+      document.getElementById("ai-url").value = cfg.baseUrl || "";
+    } else {
+      st.textContent = "Nog niet gekoppeld. Zonder sleutel werkt de rest gewoon.";
+      document.getElementById("ai-key").placeholder = "API-sleutel plakken";
+    }
+    tekenAiVelden();
+  }
+
+  /* ---------- meldingen (beperkt: werkt zolang dit scherm openstaat) ---------- */
+  function melding(tekst) {
+    try {
+      if (window.Notification && Notification.permission === "granted") {
+        new Notification("Vangnet", { body: tekst });
+        return;
+      }
+    } catch (e) {}
+  }
+
+  function tekenNotif() {
+    var b = document.getElementById("notif");
+    var n = document.getElementById("notif-note");
+    if (!("Notification" in window)) {
+      b.disabled = true;
+      b.textContent = "Herinneringen niet mogelijk";
+      n.textContent = "Deze omgeving staat meldingen niet toe.";
+      return;
+    }
+    if (Notification.permission === "granted") {
+      b.disabled = true;
+      b.textContent = "Herinneringen staan aan";
+      n.textContent = "Let op: ze komen alleen door zolang dit scherm openstaat. Echte meldingen als de app dicht is, is de volgende stap.";
+    } else {
+      b.textContent = "Herinneringen aanzetten";
+      n.textContent = "";
+    }
+  }
+
+  /* ---------- toesteltest: meten in plaats van aannemen ---------- */
+  function opBeginscherm() {
+    try {
+      return (window.navigator && window.navigator.standalone === true) ||
+             (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+    } catch (e) { return false; }
+  }
+
+  function tekenTest() {
+    var ul = document.getElementById("test-uit");
+    ul.innerHTML = "";
+
+    var heeftMelding = ("Notification" in window);
+    var heeftPush = ("PushManager" in window);
+    var heeftSW = ("serviceWorker" in navigator);
+    var heeftSpraak = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    var staandeApp = opBeginscherm();
+    var toestem = heeftMelding ? Notification.permission : "n.v.t.";
+
+    var regels = [
+      ["Opslag blijft bewaard", canPersist,
+       canPersist ? "Wat je invoert overleeft het sluiten van de pagina." :
+                    "Deze omgeving blokkeert opslag — alles is weg na verversen."],
+      ["Staat op beginscherm", staandeApp,
+       staandeApp ? "Je draait 'm als app, niet als tabblad." :
+                    "Je zit in een browsertabblad. Op iPhone kán er dan sowieso geen melding komen."],
+      ["Meldingen mogelijk", heeftMelding,
+       heeftMelding ? ("Aanwezig. Toestemming staat op: " + toestem + ".") :
+                      "Deze browser biedt meldingen hier niet aan."],
+      ["Meldingen als app dicht is", heeftPush && heeftSW,
+       (heeftPush && heeftSW) ? "Kan — hiervoor is wel een echte server nodig die de melding stuurt." :
+                                "Niet beschikbaar in deze omgeving."],
+      ["Inspreken", heeftSpraak,
+       heeftSpraak ? "De microfoonknop werkt." :
+                     "Geen microfoonknop. Gebruik het microfoontje op je toetsenbord — dat werkt wél."]
+    ];
+
+    regels.forEach(function (r) {
+      var li = document.createElement("li");
+      var t = document.createElement("div");
+      t.className = "item-text";
+      t.textContent = (r[1] ? "✓ " : "· ") + r[0];
+      if (!r[1]) t.style.color = "var(--ink-soft)";
+      var m = document.createElement("div");
+      m.className = "item-meta";
+      m.textContent = r[2];
+      t.appendChild(m);
+      li.appendChild(t);
+      ul.appendChild(li);
+    });
+
+    var li2 = document.createElement("li");
+    var t2 = document.createElement("div");
+    t2.className = "item-meta";
+    t2.textContent = navigator.userAgent;
+    li2.appendChild(t2);
+    ul.appendChild(li2);
+  }
+
+  /* ---------- opstarten ---------- */
+  function tekenAlles() { tekenNu(); tekenLijst(); tekenIk(); tekenZoek(); tekenNotif(); tekenAiStatus(); }
+
+  document.getElementById("test-doe").onclick = tekenTest;
+  document.getElementById("test-melding").onclick = function () {
+    var ul = document.getElementById("test-uit");
+    function zeg(tekst) {
+      var li = document.createElement("li");
+      var d = document.createElement("div");
+      d.className = "item-text";
+      d.textContent = tekst;
+      li.appendChild(d);
+      ul.appendChild(li);
+    }
+    if (!("Notification" in window)) { zeg("Deze browser kent meldingen hier niet."); return; }
+    Notification.requestPermission().then(function (p) {
+      if (p !== "granted") { zeg("Toestemming niet gegeven (" + p + ")."); return; }
+      try {
+        new Notification("Vangnet", { body: "Als je dit ziet, werken meldingen op dit toestel." });
+        zeg("Melding verstuurd. Zie je 'm? Dan kan het hier.");
+      } catch (e) {
+        zeg("Toestemming was er wel, maar tonen lukte niet: " + e.message);
+      }
+      tekenTest();
+    });
+  };
+
+  document.getElementById("ai-provider").onchange = tekenAiVelden;
+  document.getElementById("ai-bewaar").onclick = function () {
+    var k = document.getElementById("ai-key").value.trim();
+    var p = document.getElementById("ai-provider").value;
+    var m = document.getElementById("ai-model").value.trim();
+    var u = document.getElementById("ai-url").value.trim();
+    var st = document.getElementById("ai-status");
+    // Bestaande sleutel bewaren als het veld leeg is: dan pas je alleen model of adres aan.
+    if (!k && S.ai && S.ai.key) k = S.ai.key;
+    if (!k) { st.textContent = "Er is nog geen sleutel ingevuld."; return; }
+    if (p === "compat" && !u) { st.textContent = "Vul ook het adres van je aanbieder in."; return; }
+    if (p === "compat" && !m) { st.textContent = "Vul ook een modelnaam in."; return; }
+    S.ai = { provider: p, key: k, model: m, baseUrl: u };
+    bewaar();
+    tekenAlles();
+  };
+  document.getElementById("ai-wis").onclick = function () {
+    S.ai = null;
+    document.getElementById("ai-key").value = "";
+    document.getElementById("ai-model").value = "";
+    document.getElementById("ai-url").value = "";
+    bewaar();
+    tekenAlles();
+  };
+
+  document.getElementById("dump-save").onclick = function () {
+    var t = document.getElementById("dump");
+    voegToe(t.value);
+    t.value = "";
+    t.focus();
+  };
+  document.getElementById("dump").addEventListener("keydown", function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { document.getElementById("dump-save").click(); }
+  });
+  document.getElementById("zoek").addEventListener("input", tekenZoek);
+  document.getElementById("zoek-wis").onclick = function () {
+    document.getElementById("zoek").value = ""; tekenZoek();
+  };
+  document.getElementById("notif").onclick = function () {
+    if (!("Notification" in window)) return;
+    Notification.requestPermission().then(tekenNotif);
+  };
+  document.getElementById("wis-alles").onclick = function () {
+    if (!window.confirm("Alles wissen? Ook wat ik over je geleerd heb.")) return;
+    mem = leeg(); S = mem; bewaar(); huidig = null; stopTimer(); tekenAlles();
+  };
+
+  /* spraak, alleen waar de browser het aanbiedt */
+  (function () {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    var knop = document.getElementById("mic");
+    knop.classList.remove("hidden");
+    var r = new SR();
+    r.lang = "nl-NL"; r.interimResults = false; r.maxAlternatives = 1;
+    var luistert = false;
+    r.onresult = function (e) {
+      var t = document.getElementById("dump");
+      t.value = (t.value ? t.value + " " : "") + e.results[0][0].transcript;
+    };
+    r.onend = function () { luistert = false; knop.classList.remove("on"); };
+    r.onerror = function () { luistert = false; knop.classList.remove("on"); };
+    knop.onclick = function () {
+      if (luistert) { r.stop(); return; }
+      try { r.start(); luistert = true; knop.classList.add("on"); } catch (e) {}
+    };
+  })();
+
+  /* Binnenkomst vanaf het deelmenu of een Opdracht: ?t=... (ook title/text/url) */
+  (function () {
+    var q;
+    try { q = new URLSearchParams(location.search); } catch (e) { return; }
+    var stukken = ["t", "tekst", "title", "text", "url"]
+      .map(function (k) { return (q.get(k) || "").trim(); })
+      .filter(Boolean);
+    if (!stukken.length) return;
+    voegToe(stukken.join(" — "));
+    try { history.replaceState({}, "", location.pathname); } catch (e) {}
+  })();
+
+  /* Offline kunnen vastleggen: zonder bereik is de vangnetfunctie juist het hardst nodig */
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  }
+
+  if (!canPersist) {
+    document.querySelector(".foot").innerHTML =
+      "<strong>Let op: opslaan lukt hier niet.</strong> Deze omgeving blokkeert opslag, " +
+      "dus alles is weg zodra je de pagina ververst.<br>Hulpmiddel, geen behandeling.";
+  }
+
+  tekenAlles();
+})();
+</script>
+
+</body>
+</html>
