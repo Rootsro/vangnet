@@ -167,8 +167,17 @@
   .bevestig {
     margin-top: 12px; padding: 12px; border-radius: 10px;
     background: var(--bg); border: 1px solid var(--line);
+    animation: opvallen .9s ease-out;
   }
+  .bevestig.vraag { border-color: var(--mark); background: var(--mark-soft); }
   .bevestig p { margin: 0 0 10px; font-size: 15px; }
+  .bevestig .kop { font-weight: 700; margin-bottom: 6px; font-size: 14px; }
+  .bevestig.vraag .kop { color: var(--mark); }
+  @keyframes opvallen {
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+    100% { box-shadow: 0 0 0 14px transparent; }
+  }
+  @media (prefers-reduced-motion: reduce) { .bevestig { animation: none; } }
 
   .kopje { font-size: 12px; text-transform: uppercase; letter-spacing: .07em;
            color: var(--ink-faint); font-weight: 700; margin: 18px 0 2px; }
@@ -292,7 +301,8 @@
 
   <p class="foot">
     Alles blijft op dit apparaat. Niets gaat naar een server.<br>
-    Hulpmiddel, geen behandeling.
+    Hulpmiddel, geen behandeling.<br>
+    <span id="versie"></span>
   </p>
 </div>
 
@@ -485,6 +495,9 @@
     return "doen";
   }
 
+  /* Woorden die wél een moment bedoelen maar er geen noemen: dan vragen we het. */
+  var VAAG = /\b(binnenkort|snel|z\.?s\.?m\.?|asap|ooit|later|straks|ergens|deze week|volgende week|komende (?:dagen|week|tijd)|eind van de week|na het weekend|dezer dagen|een dezer dagen|dit weekend|komend weekend)\b/i;
+
   /* ================= de zetjes ================= */
   var ZETTEN = [
     { id: "vijf", timer: 300, tekst: {
@@ -549,7 +562,8 @@
   function feiten() { return S.items.filter(function (i) { return i.soort === "weten" && i.staat !== "weg"; }); }
   function speelt(i) { return !i.wanneer || i.wanneer <= Date.now(); }
 
-  var laatste = null;   // laatst toegevoegde item, voor de bevestigingsstrook
+  var laatste = null;      // laatst toegevoegde item, voor de bevestigingsstrook
+  var nietGezien = false;  // strook nog niet in beeld gebracht
 
   function voegToe(ruw) {
     ruw = (ruw || "").trim();
@@ -562,12 +576,15 @@
       ruw: ruw,
       soort: soort,
       wanneer: soort === "doen" ? m.ts : null,
+      // Wel een tijdsbedoeling, geen te lezen moment: dan vragen we het na.
+      vraag: (!m.ts && soort === "doen" && VAAG.test(ruw)),
       staat: "open",
       gemaakt: Date.now(),
       zetjes: 0
     };
     S.items.unshift(it);
     laatste = it;
+    nietGezien = true;
     bewaar();
     tekenAlles();
     return it;
@@ -582,6 +599,19 @@
   }
 
   /* ================= bevestigingsstrook ================= */
+  function overUur(uren, uur, minuut) {
+    var d = new Date(Date.now() + uren * 864e5);
+    d.setHours(uur, minuut || 0, 0, 0);
+    if (d.getTime() <= Date.now()) d = new Date(d.getTime() + 864e5);
+    return d.getTime();
+  }
+  function komendeMaandag() {
+    var nu = new Date(), v = (1 - nu.getDay() + 7) % 7 || 7;
+    var d = new Date(nu.getTime() + v * 864e5);
+    d.setHours(9, 0, 0, 0);
+    return d.getTime();
+  }
+
   function tekenBevestig() {
     var b = document.getElementById("bevestig");
     b.innerHTML = "";
@@ -589,53 +619,62 @@
     var it = laatste;
 
     var box = document.createElement("div");
-    box.className = "bevestig";
+    box.className = "bevestig" + (it.vraag ? " vraag" : "");
+
+    var kop = document.createElement("div");
+    kop.className = "kop";
+    kop.textContent = it.vraag ? "Bewaard — maar wannéér?" : "Bewaard";
+    box.appendChild(kop);
 
     var p = document.createElement("p");
     var chip = document.createElement("span");
     chip.className = "chip" + (it.soort === "weten" ? " feit" : "");
-    chip.textContent = it.soort === "weten" ? "om te weten" : (it.wanneer ? momentLabel(it.wanneer) : "geen moment");
+    chip.textContent = it.soort === "weten" ? "om te weten"
+                     : (it.wanneer ? momentLabel(it.wanneer) : "nog geen moment");
     p.appendChild(chip);
     p.appendChild(document.createTextNode(it.tekst));
     box.appendChild(p);
 
     var rij = document.createElement("div");
     rij.className = "row";
-
-    function knop(tekst, fn) {
+    function knop(tekst, fn, hoofd) {
       var k = document.createElement("button");
-      k.className = "ghost mini";
+      k.className = (hoofd ? "primary" : "ghost") + " mini";
       k.textContent = tekst;
       k.onclick = fn;
       rij.appendChild(k);
     }
+    function zet(ts) { return function () { it.wanneer = ts(); it.vraag = false; bewaar(); tekenAlles(); }; }
 
-    if (it.soort === "doen") {
-      knop("Is een feit", function () {
-        it.soort = "weten"; it.wanneer = null; bewaar(); tekenAlles();
-      });
+    if (it.vraag) {
+      knop("Vanavond", zet(function () { return overUur(0, 19, 30); }));
+      knop("Morgenochtend", zet(function () { return overUur(1, 9, 0); }));
+      knop("Overmorgen", zet(function () { return overUur(2, 9, 0); }));
+      knop("Maandag", zet(komendeMaandag));
+      knop("Laat maar open", function () { it.vraag = false; bewaar(); tekenAlles(); });
+    } else if (it.soort === "doen") {
+      knop("Is een feit", function () { it.soort = "weten"; it.wanneer = null; bewaar(); tekenAlles(); });
       if (it.wanneer) {
         knop("Geen moment", function () { it.wanneer = null; bewaar(); tekenAlles(); });
         knop("Uur later", function () { it.wanneer += 36e5; bewaar(); tekenAlles(); });
         knop("Dag later", function () { it.wanneer += 864e5; bewaar(); tekenAlles(); });
       } else {
-        knop("Vanavond", function () {
-          var d = new Date(); d.setHours(19, 30, 0, 0);
-          if (d < new Date()) d = new Date(d.getTime() + 864e5);
-          it.wanneer = d.getTime(); bewaar(); tekenAlles();
-        });
-        knop("Morgenochtend", function () {
-          var d = new Date(Date.now() + 864e5); d.setHours(9, 0, 0, 0);
-          it.wanneer = d.getTime(); bewaar(); tekenAlles();
-        });
+        knop("Vanavond", zet(function () { return overUur(0, 19, 30); }));
+        knop("Morgenochtend", zet(function () { return overUur(1, 9, 0); }));
       }
+      knop("Klaar", function () { laatste = null; tekenBevestig(); }, true);
     } else {
       knop("Is een taak", function () { it.soort = "doen"; bewaar(); tekenAlles(); });
+      knop("Klaar", function () { laatste = null; tekenBevestig(); }, true);
     }
-    knop("Klaar", function () { laatste = null; tekenBevestig(); });
 
     box.appendChild(rij);
     b.appendChild(box);
+
+    if (nietGezien) {
+      nietGezien = false;
+      try { box.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {}
+    }
   }
 
   /* ================= het Nu-moment ================= */
@@ -793,6 +832,18 @@
       c.className = "chip" + (it.wanneer <= Date.now() ? " laat" : "");
       c.textContent = momentLabel(it.wanneer);
       t.appendChild(c);
+    } else if (metChip && it.vraag) {
+      // Vraag nog niet beantwoord: hier kun je er alsnog een moment aan hangen.
+      var v = document.createElement("button");
+      v.className = "chip feit";
+      v.style.cursor = "pointer";
+      v.textContent = "wanneer?";
+      v.title = "Kies alsnog een moment";
+      v.onclick = function (e) {
+        e.stopPropagation();
+        laatste = it; nietGezien = true; tekenAlles();
+      };
+      t.appendChild(v);
     }
     t.appendChild(document.createTextNode(it.tekst));
 
@@ -1185,13 +1236,19 @@
   })();
 
   if ("serviceWorker" in navigator && location.protocol === "https:") {
-    navigator.serviceWorker.register("sw.js").catch(function () {});
+    navigator.serviceWorker.register("sw.js").then(function (reg) {
+      reg.update();                    // altijd even kijken of er een nieuwe versie is
+    }).catch(function () {});
   }
+
+  /* Zodat we allebei kunnen zien welke versie er draait. */
+  var VERSIE = "versie 4 — 15 augustus 2026";
+  document.getElementById("versie").textContent = VERSIE;
 
   if (!canPersist) {
     document.querySelector(".foot").innerHTML =
       "<strong>Let op: opslaan lukt hier niet.</strong> Deze omgeving blokkeert opslag, " +
-      "dus alles is weg zodra je ververst.<br>Hulpmiddel, geen behandeling.";
+      "dus alles is weg zodra je ververst.<br>Hulpmiddel, geen behandeling.<br>" + VERSIE;
   }
 
   tekenAlles();

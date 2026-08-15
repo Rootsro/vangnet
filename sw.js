@@ -1,5 +1,5 @@
 /* Offline kunnen vastleggen. Netwerk eerst, cache als vangnet. */
-var CACHE = "vangnet-v1";
+var CACHE = "vangnet-v4";
 var KERN = ["./", "./index.html", "./manifest.webmanifest",
             "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
