@@ -726,11 +726,15 @@
   }
 
   /* ================= het Nu-moment ================= */
-  var huidig = null, timerId = null, timerEind = 0;
+  var huidig = S.huidig || null;   // overleeft herladen
+  var timerId = null, timerEind = 0;
 
-  function pakIets() {
+  function pakIets(behalveId) {
     var kandidaten = taken().filter(speelt);
-    if (!kandidaten.length) { huidig = null; return; }
+    if (behalveId && kandidaten.length > 1) {
+      kandidaten = kandidaten.filter(function (i) { return i.id !== behalveId; });
+    }
+    if (!kandidaten.length) { huidig = null; S.huidig = null; return; }
     kandidaten.sort(function (a, b) {
       var aw = a.wanneer || Infinity, bw = b.wanneer || Infinity;
       if (aw !== bw) return aw - bw;                    // wat het langst wacht eerst
@@ -744,6 +748,8 @@
       toon: kies("toon", TONEN),
       moment: nuDagdeel()
     };
+    S.huidig = huidig;   // blijft staan bij herladen, springt niet rond
+    bewaar();
   }
 
   function feedback(gelukt) {
@@ -757,7 +763,7 @@
       if (gelukt) zetStaat(it.id, "af");
       else if (it.wanneer) it.wanneer = Date.now() + 36e5;   // niet nu = over een uur nog eens
     }
-    stopTimer(); huidig = null; bewaar(); tekenAlles();
+    stopTimer(); huidig = null; S.huidig = null; bewaar(); tekenAlles();
   }
 
   function stopTimer() { if (timerId) { clearInterval(timerId); timerId = null; } timerEind = 0; }
@@ -778,32 +784,27 @@
     var b = document.getElementById("nu-body");
     b.innerHTML = "";
 
+    // Staat het gekozen ding er nog en mag het nu? Zo niet, kies opnieuw.
+    if (huidig) {
+      var nog = S.items.filter(function (i) {
+        return i.id === huidig.itemId && i.staat === "open" && speelt(i);
+      })[0];
+      if (!nog) huidig = null;
+    }
+    if (!huidig) pakIets();
+
     if (!huidig) {
-      var speelbaar = taken().filter(speelt);
       var geparkeerd = taken().filter(function (i) { return !speelt(i); })
                               .sort(function (a, b) { return a.wanneer - b.wanneer; });
-
       var p = document.createElement("p");
       p.className = "nu-leeg";
-      if (speelbaar.length) {
-        p.textContent = "Er " + (speelbaar.length === 1 ? "staat 1 ding" : "staan " + speelbaar.length + " dingen") + " klaar.";
-      } else if (geparkeerd.length) {
-        p.textContent = "Niks dat nu moet. Volgende: " + geparkeerd[0].tekst + " — " + momentLabel(geparkeerd[0].wanneer) + ".";
+      if (geparkeerd.length) {
+        p.textContent = "Niks dat nu moet. Volgende: " + geparkeerd[0].tekst +
+                        " — " + momentLabel(geparkeerd[0].wanneer) + ".";
       } else {
         p.textContent = "Niks open. Dat mag ook.";
       }
       b.appendChild(p);
-
-      if (speelbaar.length) {
-        var r = document.createElement("div");
-        r.className = "row"; r.style.marginTop = "14px";
-        var kb = document.createElement("button");
-        kb.className = "primary";
-        kb.textContent = "Ik kom er niet in";
-        kb.onclick = function () { pakIets(); tekenNu(); };
-        r.appendChild(kb);
-        b.appendChild(r);
-      }
       return;
     }
 
@@ -844,9 +845,14 @@
     knop("Gelukt", "primary", function () { feedback(true); });
     knop("Niet nu", "ghost", function () { feedback(false); });
     knop("Later…", "ghost", function () { regelMoment(item); });
+    if (taken().filter(speelt).length > 1) {
+      knop("Iets anders", "ghost", function () {
+        stopTimer(); pakIets(huidig.itemId); tekenNu();
+      });
+    }
     knop("Hoeft niet meer", "ghost", function () {
       if (huidig) zetStaat(huidig.itemId, "weg");
-      stopTimer(); huidig = null; bewaar(); tekenAlles();
+      stopTimer(); huidig = null; S.huidig = null; bewaar(); tekenAlles();
     });
 
     if (aiConfig()) {
@@ -1547,7 +1553,7 @@
   })();
 
   /* Zodat we allebei kunnen zien welke versie er draait. */
-  var VERSIE = "versie 8 — 16 augustus 2026";
+  var VERSIE = "versie 9 — 16 augustus 2026";
   document.getElementById("versie").textContent = VERSIE;
 
   if (!canPersist) {
