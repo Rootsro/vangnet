@@ -584,8 +584,14 @@
   function feiten() { return S.items.filter(function (i) { return i.soort === "weten" && i.staat !== "weg"; }); }
   function speelt(i) { return !i.wanneer || i.wanneer <= Date.now(); }
 
-  var laatste = null;      // laatst toegevoegde item, voor de bevestigingsstrook
+  var laatste = null;      // item waarvan de strook openstaat
   var nietGezien = false;  // strook nog niet in beeld gebracht
+  var kiezerAan = false;   // eigen datum-en-tijdkiezer uitgeklapt
+
+  /* Overal hetzelfde: strook openen om het moment van dit item te regelen. */
+  function regelMoment(it) {
+    laatste = it; nietGezien = true; kiezerAan = false; tekenAlles();
+  }
 
   function voegToe(ruw) {
     ruw = (ruw || "").trim();
@@ -607,6 +613,7 @@
     S.items.unshift(it);
     laatste = it;
     nietGezien = true;
+    kiezerAan = false;
     bewaar();
     tekenAlles();
     return it;
@@ -659,38 +666,67 @@
 
     var rij = document.createElement("div");
     rij.className = "row";
-    function knop(tekst, fn, hoofd) {
+    function knop(tekst, fn, hoofd, waar) {
       var k = document.createElement("button");
       k.className = (hoofd ? "primary" : "ghost") + " mini";
       k.textContent = tekst;
       k.onclick = fn;
-      rij.appendChild(k);
+      (waar || rij).appendChild(k);
+      return k;
     }
     function zet(ts) { return function () { it.wanneer = ts(); it.vraag = false; bewaar(); tekenAlles(); }; }
 
-    if (it.vraag) {
-      knop("Vanavond", zet(function () { return overUur(0, 19, 30); }));
-      knop("Morgenochtend", zet(function () { return overUur(1, 9, 0); }));
-      knop("Overmorgen", zet(function () { return overUur(2, 9, 0); }));
-      knop("Maandag", zet(komendeMaandag));
-      knop("Laat maar open", function () { it.vraag = false; bewaar(); tekenAlles(); });
-    } else if (it.soort === "doen") {
-      knop("Is een feit", function () { it.soort = "weten"; it.wanneer = null; bewaar(); tekenAlles(); });
+    if (it.soort === "doen") {
       if (it.wanneer) {
-        knop("Geen moment", function () { it.wanneer = null; bewaar(); tekenAlles(); });
         knop("Uur later", function () { it.wanneer += 36e5; bewaar(); tekenAlles(); });
         knop("Dag later", function () { it.wanneer += 864e5; bewaar(); tekenAlles(); });
       } else {
         knop("Vanavond", zet(function () { return overUur(0, 19, 30); }));
         knop("Morgenochtend", zet(function () { return overUur(1, 9, 0); }));
+        knop("Overmorgen", zet(function () { return overUur(2, 9, 0); }));
+        knop("Maandag", zet(komendeMaandag));
       }
-      knop("Klaar", function () { laatste = null; tekenBevestig(); }, true);
+      knop("Kies zelf…", function () { kiezerAan = !kiezerAan; tekenBevestig(); });
+      if (it.wanneer || it.vraag) {
+        knop(it.vraag ? "Laat maar open" : "Geen moment", function () {
+          it.wanneer = null; it.vraag = false; bewaar(); tekenAlles();
+        });
+      }
+      knop("Is een feit", function () {
+        it.soort = "weten"; it.wanneer = null; it.vraag = false; bewaar(); tekenAlles();
+      });
     } else {
       knop("Is een taak", function () { it.soort = "doen"; bewaar(); tekenAlles(); });
-      knop("Klaar", function () { laatste = null; tekenBevestig(); }, true);
     }
+    knop("Klaar", function () { laatste = null; kiezerAan = false; tekenBevestig(); }, true);
 
     box.appendChild(rij);
+
+    if (kiezerAan && it.soort === "doen") {
+      var kiezer = document.createElement("div");
+      kiezer.className = "row";
+      kiezer.style.marginTop = "10px";
+
+      var inv = document.createElement("input");
+      inv.type = "datetime-local";
+      inv.style.cssText = "flex:1;min-width:190px;border:1px solid var(--line);" +
+                          "border-radius:10px;padding:8px 10px;background:var(--card);color:var(--ink)";
+      var basis = new Date(it.wanneer || overUur(1, 9, 0));
+      inv.value = basis.getFullYear() + "-" + ("0" + (basis.getMonth() + 1)).slice(-2) + "-" +
+                  ("0" + basis.getDate()).slice(-2) + "T" +
+                  ("0" + basis.getHours()).slice(-2) + ":" + ("0" + basis.getMinutes()).slice(-2);
+      kiezer.appendChild(inv);
+
+      knop("Zet", function () {
+        var d = new Date(inv.value);
+        if (isNaN(d.getTime())) return;
+        it.wanneer = d.getTime(); it.vraag = false; kiezerAan = false;
+        bewaar(); tekenAlles();
+      }, true, kiezer);
+
+      box.appendChild(kiezer);
+    }
+
     b.appendChild(box);
 
     if (nietGezien) {
@@ -817,6 +853,7 @@
     }
     knop("Gelukt", "primary", function () { feedback(true); });
     knop("Niet nu", "ghost", function () { feedback(false); });
+    knop("Later…", "ghost", function () { regelMoment(item); });
     knop("Hoeft niet meer", "ghost", function () {
       if (huidig) zetStaat(huidig.itemId, "weg");
       stopTimer(); huidig = null; bewaar(); tekenAlles();
@@ -849,23 +886,21 @@
     var t = document.createElement("div");
     t.className = "item-text";
 
-    if (metChip && it.wanneer) {
-      var c = document.createElement("span");
-      c.className = "chip" + (it.wanneer <= Date.now() ? " laat" : "");
-      c.textContent = momentLabel(it.wanneer);
+    if (metChip) {
+      // Elke taak toont zijn moment — of vraagt erom. Altijd aantikbaar om te wijzigen.
+      var c = document.createElement("button");
+      c.style.cursor = "pointer";
+      if (it.wanneer) {
+        c.className = "chip" + (it.wanneer <= Date.now() ? " laat" : "");
+        c.textContent = momentLabel(it.wanneer);
+        c.title = "Moment wijzigen";
+      } else {
+        c.className = "chip feit";
+        c.textContent = "wanneer?";
+        c.title = "Een moment kiezen";
+      }
+      c.onclick = function (e) { e.stopPropagation(); regelMoment(it); };
       t.appendChild(c);
-    } else if (metChip && it.vraag) {
-      // Vraag nog niet beantwoord: hier kun je er alsnog een moment aan hangen.
-      var v = document.createElement("button");
-      v.className = "chip feit";
-      v.style.cursor = "pointer";
-      v.textContent = "wanneer?";
-      v.title = "Kies alsnog een moment";
-      v.onclick = function (e) {
-        e.stopPropagation();
-        laatste = it; nietGezien = true; tekenAlles();
-      };
-      t.appendChild(v);
     }
     t.appendChild(document.createTextNode(it.tekst));
 
@@ -1282,7 +1317,7 @@
   })();
 
   /* Zodat we allebei kunnen zien welke versie er draait. */
-  var VERSIE = "versie 5 — 15 augustus 2026";
+  var VERSIE = "versie 6 — 15 augustus 2026";
   document.getElementById("versie").textContent = VERSIE;
 
   if (!canPersist) {
