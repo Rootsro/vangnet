@@ -272,7 +272,9 @@
   <section class="card">
     <h2>Koppel je eigen AI</h2>
     <p class="note" style="margin-top:0">
-      Optioneel. Met je eigen sleutel kan ik een vage aantekening omzetten in één concrete eerste handeling.
+      Optioneel. Met je eigen sleutel leest de app beter wat je intikt: hij splitst meerdere dingen
+      uit één zin, snapt lastigere tijden en ziet beter of iets een taak of een feit is.
+      Zonder sleutel doet hij dat zelf, alleen wat botter. Vastleggen wacht nooit op de AI.
       De sleutel blijft op dit apparaat en gaat rechtstreeks naar de aanbieder — niet langs mij.
     </p>
     <div class="row" style="margin-top:12px; align-items:center">
@@ -587,6 +589,9 @@
   var laatste = null;      // item waarvan de strook openstaat
   var nietGezien = false;  // strook nog niet in beeld gebracht
   var kiezerAan = false;   // eigen datum-en-tijdkiezer uitgeklapt
+  var aiBezig = false;     // AI kijkt nog naar de laatste invoer
+  var aiExtra = 0;         // hoeveel extra items de AI eruit haalde
+  var aiFout = "";         // laatste AI-fout, alleen ter info
 
   /* Overal hetzelfde: strook openen om het moment van dit item te regelen. */
   function regelMoment(it) {
@@ -614,8 +619,11 @@
     laatste = it;
     nietGezien = true;
     kiezerAan = false;
+    aiExtra = 0;
+    aiFout = "";
     bewaar();
     tekenAlles();
+    verrijkMetAI(it, ruw);   // vastleggen wacht nooit op de AI
     return it;
   }
 
@@ -652,7 +660,10 @@
 
     var kop = document.createElement("div");
     kop.className = "kop";
-    kop.textContent = it.vraag ? "Bewaard — maar wannéér?" : "Bewaard";
+    kop.textContent = aiBezig ? "Bewaard — even kijken wat je bedoelt…"
+                    : it.vraag ? "Bewaard — maar wannéér?"
+                    : aiExtra ? "Bewaard — er zaten " + (aiExtra + 1) + " dingen in"
+                    : "Bewaard";
     box.appendChild(kop);
 
     var p = document.createElement("p");
@@ -725,6 +736,13 @@
       }, true, kiezer);
 
       box.appendChild(kiezer);
+    }
+
+    if (aiFout) {
+      var f = document.createElement("p");
+      f.className = "note";
+      f.textContent = "De AI kon er niets mee (" + aiFout + "). Mijn eigen lezing blijft staan.";
+      box.appendChild(f);
     }
 
     b.appendChild(box);
@@ -1057,17 +1075,10 @@
 
   function aiConfig() { return (S.ai && S.ai.key) ? S.ai : null; }
 
-  async function vraagAI(itemTekst) {
+  /* Eén transportlaag voor alle aanbieders. jsonModus vraagt om kale JSON terug. */
+  async function roepModel(opdracht, maxTokens, jsonModus) {
     var cfg = aiConfig();
     if (!cfg) throw new Error("geen sleutel");
-    var toon = kies("toon", TONEN);
-    var opdracht =
-      "Iemand met ADHD of ADD heeft dit opgeschreven en komt er niet in:\n\n\"" + itemTekst + "\"\n\n" +
-      "Noem één concrete fysieke eerste handeling die binnen twee minuten te doen is. " +
-      "Geen plan, geen stappenlijst, geen uitleg, geen aanmoediging. " +
-      "Eén zin, Nederlands, maximaal vijftien woorden. Toon: " +
-      ({ kort: "kaal en kort", zacht: "zacht en vrijblijvend", speels: "licht en speels" })[toon] + ".";
-
     var model = cfg.model || STANDAARDMODEL[cfg.provider] || "";
     var url, headers, body;
 
@@ -1076,13 +1087,16 @@
       headers = { "content-type": "application/json", "x-api-key": cfg.key,
                   "anthropic-version": "2023-06-01",
                   "anthropic-dangerous-direct-browser-access": "true" };
-      body = { model: model, max_tokens: 300, thinking: { type: "disabled" },
+      body = { model: model, max_tokens: maxTokens, thinking: { type: "disabled" },
                output_config: { effort: "low" },
                messages: [{ role: "user", content: opdracht }] };
     } else if (cfg.provider === "gemini") {
-      url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent";
+      url = "https://generativelanguage.googleapis.com/v1beta/models/" +
+            encodeURIComponent(model) + ":generateContent";
       headers = { "content-type": "application/json", "x-goog-api-key": cfg.key };
-      body = { contents: [{ parts: [{ text: opdracht }] }], generationConfig: { maxOutputTokens: 200 } };
+      body = { contents: [{ parts: [{ text: opdracht }] }],
+               generationConfig: { maxOutputTokens: maxTokens } };
+      if (jsonModus) body.generationConfig.responseMimeType = "application/json";
     } else {
       var basis = cfg.provider === "openai" ? "https://api.openai.com/v1"
                                             : String(cfg.baseUrl || "").replace(/\/+$/, "");
@@ -1090,7 +1104,9 @@
       if (!model) throw new Error("Geen model ingevuld.");
       url = basis + "/chat/completions";
       headers = { "content-type": "application/json", "authorization": "Bearer " + cfg.key };
-      body = { model: model, max_tokens: 200, messages: [{ role: "user", content: opdracht }] };
+      body = { model: model, max_tokens: maxTokens,
+               messages: [{ role: "user", content: opdracht }] };
+      if (jsonModus) body.response_format = { type: "json_object" };
     }
 
     var res = await fetch(url, { method: "POST", headers: headers, body: JSON.stringify(body) });
@@ -1111,7 +1127,92 @@
       uit = keuze && keuze.message && keuze.message.content;
     }
     if (!uit || !uit.trim()) throw new Error("Leeg antwoord.");
-    return { tekst: uit.trim(), toon: toon };
+    return uit.trim();
+  }
+
+  async function vraagAI(itemTekst) {
+    var toon = kies("toon", TONEN);
+    var opdracht =
+      "Iemand met ADHD of ADD heeft dit opgeschreven en komt er niet in:\n\n\"" + itemTekst + "\"\n\n" +
+      "Noem één concrete fysieke eerste handeling die binnen twee minuten te doen is. " +
+      "Geen plan, geen stappenlijst, geen uitleg, geen aanmoediging. " +
+      "Eén zin, Nederlands, maximaal vijftien woorden. Toon: " +
+      ({ kort: "kaal en kort", zacht: "zacht en vrijblijvend", speels: "licht en speels" })[toon] + ".";
+    return { tekst: await roepModel(opdracht, 300, false), toon: toon };
+  }
+
+  /* Begrijpen wat je intikt: splitsen, soort bepalen, moment bepalen. */
+  function tweeCijfers(n) { return ("0" + n).slice(-2); }
+
+  async function vraagAIBegrip(ruw) {
+    var nu = new Date();
+    var nuTekst = DAGEN[nu.getDay()] + " " + nu.getDate() + " " + MAANDEN[nu.getMonth()] + " " +
+                  nu.getFullYear() + ", " + tweeCijfers(nu.getHours()) + ":" + tweeCijfers(nu.getMinutes());
+
+    var opdracht =
+      "Het is nu " + nuTekst + " (Nederland).\n\n" +
+      "Iemand met ADHD gooit losse aantekeningen in een app. Dit is de invoer:\n\"" + ruw + "\"\n\n" +
+      "Splits dit in losse punten. Geef per punt:\n" +
+      "- tekst: waar het over gaat, kort, in de woorden van de gebruiker, zónder de tijdsaanduiding\n" +
+      "- soort: \"doen\" bij iets dat gedaan moet worden, \"weten\" bij een feit om later terug te vinden " +
+      "(waar iets ligt, een code, een maat, een wachtwoord)\n" +
+      "- wanneer: het bedoelde tijdstip als \"JJJJ-MM-DDTUU:MM\", of null als er geen tijd bedoeld is\n" +
+      "- vraag: true als er duidelijk een moment bedoeld wordt dat je niet kunt vaststellen " +
+      "(binnenkort, snel, ooit), anders false\n\n" +
+      "Vuistregels: zonder tijdstip maar met een dag → 09:00. 's Avonds → 19:30. " +
+      "Een moment dat al voorbij is hoort bij de eerstvolgende keer.\n" +
+      "Antwoord met uitsluitend JSON, zonder toelichting: " +
+      "{\"items\":[{\"tekst\":\"...\",\"soort\":\"doen\",\"wanneer\":null,\"vraag\":false}]}";
+
+    var rauw = await roepModel(opdracht, 700, true);
+    rauw = rauw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+    var data = JSON.parse(rauw);
+    if (!data || !Array.isArray(data.items) || !data.items.length) throw new Error("onbruikbaar antwoord");
+
+    return data.items.slice(0, 8).map(function (r) {
+      var ts = null;
+      if (r.wanneer) {
+        var d = new Date(r.wanneer);
+        if (!isNaN(d.getTime())) ts = d.getTime();
+      }
+      var soort = (r.soort === "weten") ? "weten" : "doen";
+      return {
+        tekst: String(r.tekst || "").trim() || ruw,
+        soort: soort,
+        wanneer: soort === "doen" ? ts : null,
+        vraag: soort === "doen" && !ts && !!r.vraag
+      };
+    });
+  }
+
+  /* Verfijnt een net opgeslagen item. Mislukt dit, dan blijft de eigen lezing staan. */
+  function verrijkMetAI(it, ruw) {
+    if (!aiConfig()) return;
+    aiBezig = true;
+    tekenBevestig();
+    vraagAIBegrip(ruw).then(function (rijen) {
+      if (S.items.indexOf(it) === -1) return;            // ondertussen weggegooid
+      it.tekst = rijen[0].tekst;
+      it.soort = rijen[0].soort;
+      it.wanneer = rijen[0].wanneer;
+      it.vraag = rijen[0].vraag;
+      it.doorAI = true;
+      var na = S.items.indexOf(it);
+      rijen.slice(1).forEach(function (r, i) {
+        S.items.splice(na + 1 + i, 0, {
+          id: String(Date.now()) + Math.random().toString(36).slice(2, 6),
+          tekst: r.tekst, ruw: ruw, soort: r.soort, wanneer: r.wanneer, vraag: r.vraag,
+          staat: "open", gemaakt: Date.now(), zetjes: 0, doorAI: true
+        });
+      });
+      aiExtra = rijen.length - 1;
+    }).catch(function (e) {
+      aiFout = e.message;
+    }).then(function () {
+      aiBezig = false;
+      bewaar();
+      tekenAlles();
+    });
   }
 
   function tekenAiVelden() {
@@ -1317,7 +1418,7 @@
   })();
 
   /* Zodat we allebei kunnen zien welke versie er draait. */
-  var VERSIE = "versie 6 — 15 augustus 2026";
+  var VERSIE = "versie 7 — 15 augustus 2026";
   document.getElementById("versie").textContent = VERSIE;
 
   if (!canPersist) {
