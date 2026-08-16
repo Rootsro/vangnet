@@ -270,36 +270,8 @@
 
   <!-- AI-KOPPELING -->
   <section class="card">
-    <h2>Koppel je eigen AI</h2>
-    <p class="note" style="margin-top:0">
-      Optioneel. Met je eigen sleutel leest de app beter wat je intikt: hij splitst meerdere dingen
-      uit één zin, snapt lastigere tijden en ziet beter of iets een taak of een feit is.
-      Zonder sleutel doet hij dat zelf, alleen wat botter. Vastleggen wacht nooit op de AI.
-      De sleutel blijft op dit apparaat en gaat rechtstreeks naar de aanbieder — niet langs mij.
-    </p>
-    <div class="row" style="margin-top:12px; align-items:center">
-      <select id="ai-provider" style="width:auto;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card)">
-        <option value="gemini">Gemini (Google) — gratis</option>
-        <option value="anthropic">Claude (Anthropic)</option>
-        <option value="openai">ChatGPT (OpenAI)</option>
-        <option value="compat">Iets anders — Groq, OpenRouter, Mistral, lokaal</option>
-      </select>
-      <input type="text" id="ai-key" placeholder="API-sleutel plakken" autocomplete="off"
-             style="flex:1;min-width:170px;border:1px solid var(--line);border-radius:10px;padding:9px 10px">
-    </div>
-    <div class="row hidden" id="ai-extra" style="margin-top:8px">
-      <input type="text" id="ai-url" placeholder="Adres, bijv. https://api.groq.com/openai/v1" autocomplete="off"
-             style="flex:2;min-width:200px;border:1px solid var(--line);border-radius:10px;padding:9px 10px">
-    </div>
-    <div class="row" style="margin-top:8px">
-      <input type="text" id="ai-model" placeholder="Model (leeg laten = standaard)" autocomplete="off"
-             style="flex:1;min-width:180px;border:1px solid var(--line);border-radius:10px;padding:9px 10px">
-    </div>
-    <div class="row end" style="margin-top:10px">
-      <button class="ghost" id="ai-wis">Vergeet sleutel</button>
-      <button class="primary" id="ai-bewaar">Koppel</button>
-    </div>
-    <p class="note" id="ai-status"></p>
+    <h2>Slimmer maken met je eigen AI</h2>
+    <div id="ai-inhoud"></div>
   </section>
 
   <!-- PROFIEL -->
@@ -1215,30 +1187,206 @@
     });
   }
 
-  function tekenAiVelden() {
-    var p = document.getElementById("ai-provider").value;
-    document.getElementById("ai-extra").classList.toggle("hidden", p !== "compat");
-    document.getElementById("ai-model").placeholder = STANDAARDMODEL[p]
-      ? "Model (leeg laten = " + STANDAARDMODEL[p] + ")" : "Model, bijv. llama-3.3-70b-versatile";
+  var UITLEG = {
+    gemini: {
+      prijs: "Gratis, zonder creditcard.",
+      link: "https://aistudio.google.com/apikey",
+      linktekst: "aistudio.google.com/apikey",
+      stappen: ["Open de link en log in met je gewone Google-account.",
+                "Klik op de knop om een sleutel aan te maken (‘Create API key’).",
+                "Kopieer de sleutel. Die begint met AIza.",
+                "Plak hem hieronder en tik op Koppel."]
+    },
+    anthropic: {
+      prijs: "Betaald per gebruik. Geen gratis niveau — je zet er zelf tegoed op.",
+      link: "https://console.anthropic.com/settings/keys",
+      linktekst: "console.anthropic.com",
+      stappen: ["Maak een account aan en zet er wat tegoed op.",
+                "Ga naar API keys en maak een nieuwe sleutel.",
+                "Kopieer de sleutel. Die begint met sk-ant.",
+                "Plak hem hieronder en tik op Koppel."]
+    },
+    openai: {
+      prijs: "Betaald per gebruik. Je ChatGPT-abonnement telt hier niet voor.",
+      link: "https://platform.openai.com/api-keys",
+      linktekst: "platform.openai.com",
+      stappen: ["Maak een account aan en zet er wat tegoed op.",
+                "Ga naar API keys en maak een nieuwe sleutel.",
+                "Kopieer de sleutel. Die begint met sk-.",
+                "Plak hem hieronder en tik op Koppel."]
+    },
+    compat: {
+      prijs: "Verschilt per aanbieder. Groq is gratis zonder creditcard.",
+      link: "https://console.groq.com/keys",
+      linktekst: "console.groq.com/keys",
+      stappen: ["Maak een sleutel aan bij je aanbieder.",
+                "Vul hieronder ook het adres en de modelnaam in.",
+                "Voor Groq: adres https://api.groq.com/openai/v1 en " +
+                "model llama-3.3-70b-versatile.",
+                "Plak de sleutel en tik op Koppel."]
+    }
+  };
+
+  var aiKeuze = null;   // gekozen aanbieder terwijl je nog aan het koppelen bent
+
+  function veld(id, plaatshouder, waarde) {
+    var i = document.createElement("input");
+    i.type = "text"; i.id = id; i.placeholder = plaatshouder; i.autocomplete = "off";
+    i.value = waarde || "";
+    i.style.cssText = "flex:1;min-width:180px;border:1px solid var(--line);" +
+                      "border-radius:10px;padding:9px 10px;background:var(--card);color:var(--ink)";
+    return i;
   }
 
-  function tekenAiStatus() {
-    var st = document.getElementById("ai-status");
+  function tekenAi() {
+    var host = document.getElementById("ai-inhoud");
+    host.innerHTML = "";
     var cfg = aiConfig();
+
+    /* --- al gekoppeld --- */
     if (cfg) {
-      st.textContent = "Gekoppeld met " + (NAAM[cfg.provider] || cfg.provider) +
-                       " (" + (cfg.model || STANDAARDMODEL[cfg.provider]) + "). " +
-                       "Alleen de tekst van dat ene item gaat mee.";
-      document.getElementById("ai-provider").value = cfg.provider;
-      document.getElementById("ai-key").value = "";
-      document.getElementById("ai-key").placeholder = "sleutel opgeslagen";
-      document.getElementById("ai-model").value = cfg.model || "";
-      document.getElementById("ai-url").value = cfg.baseUrl || "";
-    } else {
-      st.textContent = "Nog niet gekoppeld. Zonder sleutel werkt de rest gewoon.";
-      document.getElementById("ai-key").placeholder = "API-sleutel plakken";
+      var st = document.createElement("p");
+      st.className = "note"; st.style.marginTop = "0";
+      st.innerHTML = "Gekoppeld met <strong>" + (NAAM[cfg.provider] || cfg.provider) + "</strong> (" +
+                     (cfg.model || STANDAARDMODEL[cfg.provider]) + "). " +
+                     "Alleen de tekst van wat je intikt gaat mee — geen naam, geen geschiedenis.";
+      host.appendChild(st);
+
+      var r = document.createElement("div");
+      r.className = "row"; r.style.marginTop = "12px";
+      var wis = document.createElement("button");
+      wis.className = "ghost mini"; wis.textContent = "Ontkoppelen";
+      wis.onclick = function () { S.ai = null; aiKeuze = null; bewaar(); tekenAlles(); };
+      var and = document.createElement("button");
+      and.className = "ghost mini"; and.textContent = "Andere AI kiezen";
+      and.onclick = function () { S.ai = null; aiKeuze = null; bewaar(); tekenAlles(); };
+      r.appendChild(wis); r.appendChild(and);
+      host.appendChild(r);
+      return;
     }
-    tekenAiVelden();
+
+    /* --- nog niet gekoppeld: eerst waaróm --- */
+    if (!aiKeuze) {
+      var p = document.createElement("p");
+      p.className = "note"; p.style.marginTop = "0";
+      p.innerHTML = "Dit hoeft niet — de app werkt zonder. Met een sleutel begrijpt hij beter " +
+                    "wat je intikt:";
+      host.appendChild(p);
+
+      var ul = document.createElement("ul");
+      ul.style.cssText = "margin:8px 0 0; padding-left:20px; color:var(--ink-soft); font-size:14.5px; line-height:1.75";
+      ["Eén zin met drie dingen wordt drie losse items.",
+       "“De dinsdag na de vakantie” wordt een echte datum.",
+       "Hij ziet beter of iets een taak is of iets om te onthouden."
+      ].forEach(function (t) {
+        var li = document.createElement("li"); li.textContent = t; ul.appendChild(li);
+      });
+      host.appendChild(ul);
+
+      var vr = document.createElement("p");
+      vr.style.cssText = "margin:16px 0 0; font-weight:600; font-size:15px";
+      vr.textContent = "Welke AI gebruik je?";
+      host.appendChild(vr);
+
+      var rij = document.createElement("div");
+      rij.className = "row"; rij.style.marginTop = "8px";
+      [["gemini", "Gemini (Google)"], ["anthropic", "Claude"],
+       ["openai", "ChatGPT"], ["compat", "Iets anders"]].forEach(function (k) {
+        var b = document.createElement("button");
+        b.className = (k[0] === "gemini" ? "primary" : "ghost") + " mini";
+        b.textContent = k[1];
+        b.onclick = function () { aiKeuze = k[0]; tekenAi(); };
+        rij.appendChild(b);
+      });
+      host.appendChild(rij);
+
+      var tip = document.createElement("p");
+      tip.className = "note";
+      tip.innerHTML = "<strong>Geen idee?</strong> Neem Gemini. Bijna iedereen heeft al een " +
+                      "Google-account, en daarmee is het gratis en in vijf minuten geregeld. " +
+                      "Let op: een abonnement op ChatGPT Plus, Claude Pro of SuperGrok is iets " +
+                      "ánders dan een sleutel — daarmee werkt dit niet.";
+      host.appendChild(tip);
+      return;
+    }
+
+    /* --- aanbieder gekozen: hoe kom je aan een sleutel --- */
+    var u = UITLEG[aiKeuze];
+
+    var terug = document.createElement("button");
+    terug.className = "ghost mini";
+    terug.textContent = "← andere kiezen";
+    terug.onclick = function () { aiKeuze = null; tekenAi(); };
+    host.appendChild(terug);
+
+    var kop = document.createElement("p");
+    kop.style.cssText = "margin:14px 0 4px; font-weight:600; font-size:15px";
+    kop.textContent = "Sleutel ophalen bij " + NAAM[aiKeuze];
+    host.appendChild(kop);
+
+    var pr = document.createElement("p");
+    pr.className = "note"; pr.style.margin = "0";
+    pr.textContent = u.prijs;
+    host.appendChild(pr);
+
+    var ol = document.createElement("ol");
+    ol.style.cssText = "margin:10px 0 0; padding-left:20px; color:var(--ink-soft); font-size:14.5px; line-height:1.75";
+    u.stappen.forEach(function (t) {
+      var li = document.createElement("li"); li.textContent = t; ol.appendChild(li);
+    });
+    host.appendChild(ol);
+
+    var a = document.createElement("a");
+    a.href = u.link; a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.textContent = u.linktekst + " ↗";
+    a.style.cssText = "display:inline-block; margin-top:10px; color:var(--accent); font-weight:600; font-size:14.5px";
+    host.appendChild(a);
+
+    var vr2 = document.createElement("div");
+    vr2.className = "row"; vr2.style.marginTop = "14px";
+    vr2.appendChild(veld("ai-key", "Sleutel hier plakken", ""));
+    host.appendChild(vr2);
+
+    if (aiKeuze === "compat") {
+      var vr3 = document.createElement("div");
+      vr3.className = "row"; vr3.style.marginTop = "8px";
+      vr3.appendChild(veld("ai-url", "Adres, bijv. https://api.groq.com/openai/v1", ""));
+      host.appendChild(vr3);
+    }
+    var vr4 = document.createElement("div");
+    vr4.className = "row"; vr4.style.marginTop = "8px";
+    vr4.appendChild(veld("ai-model", STANDAARDMODEL[aiKeuze]
+      ? "Model (leeg laten = " + STANDAARDMODEL[aiKeuze] + ")"
+      : "Model, bijv. llama-3.3-70b-versatile", ""));
+    host.appendChild(vr4);
+
+    var melding2 = document.createElement("p");
+    melding2.className = "note"; melding2.id = "ai-melding";
+    host.appendChild(melding2);
+
+    var rij2 = document.createElement("div");
+    rij2.className = "row end"; rij2.style.marginTop = "10px";
+    var kop2 = document.createElement("button");
+    kop2.className = "primary mini"; kop2.textContent = "Koppel";
+    kop2.onclick = function () {
+      var k = (document.getElementById("ai-key").value || "").trim();
+      var m = (document.getElementById("ai-model").value || "").trim();
+      var uu = document.getElementById("ai-url") ? document.getElementById("ai-url").value.trim() : "";
+      if (!k) { melding2.textContent = "Er is nog geen sleutel ingevuld."; return; }
+      if (aiKeuze === "compat" && (!uu || !m)) {
+        melding2.textContent = "Vul bij een eigen aanbieder ook het adres en het model in."; return;
+      }
+      S.ai = { provider: aiKeuze, key: k, model: m, baseUrl: uu };
+      aiKeuze = null;
+      bewaar(); tekenAlles();
+    };
+    rij2.appendChild(kop2);
+    host.appendChild(rij2);
+
+    var slot = document.createElement("p");
+    slot.className = "note";
+    slot.textContent = "De sleutel blijft op dit apparaat en gaat rechtstreeks naar de aanbieder — niet langs mij.";
+    host.appendChild(slot);
   }
 
   /* ================= meldingen ================= */
@@ -1313,7 +1461,7 @@
 
   /* ================= opstarten ================= */
   function tekenAlles() {
-    tekenNu(); tekenDoen(); tekenWeten(); tekenIk(); tekenBevestig(); tekenNotif(); tekenAiStatus();
+    tekenNu(); tekenDoen(); tekenWeten(); tekenIk(); tekenBevestig(); tekenNotif(); tekenAi();
   }
 
   document.getElementById("dump-save").onclick = function () {
@@ -1343,25 +1491,6 @@
       tekenTest();
     });
   };
-  document.getElementById("ai-provider").onchange = tekenAiVelden;
-  document.getElementById("ai-bewaar").onclick = function () {
-    var k = document.getElementById("ai-key").value.trim();
-    var p = document.getElementById("ai-provider").value;
-    var m = document.getElementById("ai-model").value.trim();
-    var u = document.getElementById("ai-url").value.trim();
-    var st = document.getElementById("ai-status");
-    if (!k && S.ai && S.ai.key) k = S.ai.key;
-    if (!k) { st.textContent = "Er is nog geen sleutel ingevuld."; return; }
-    if (p === "compat" && (!u || !m)) { st.textContent = "Vul ook het adres en het model in."; return; }
-    S.ai = { provider: p, key: k, model: m, baseUrl: u };
-    bewaar(); tekenAlles();
-  };
-  document.getElementById("ai-wis").onclick = function () {
-    S.ai = null;
-    ["ai-key", "ai-model", "ai-url"].forEach(function (id) { document.getElementById(id).value = ""; });
-    bewaar(); tekenAlles();
-  };
-
   /* spraak, alleen waar de browser het aanbiedt */
   (function () {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1418,7 +1547,7 @@
   })();
 
   /* Zodat we allebei kunnen zien welke versie er draait. */
-  var VERSIE = "versie 7 — 15 augustus 2026";
+  var VERSIE = "versie 8 — 16 augustus 2026";
   document.getElementById("versie").textContent = VERSIE;
 
   if (!canPersist) {
